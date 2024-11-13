@@ -32,6 +32,19 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-sensors",
+        {
+          "permissions": ["accelerometer"],
+          "motionPermission": "Allow Fitness Tracker to access your device motion"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Fitness Tracker to use your location."
+        }
       ]
     ],
     "experiments": {
