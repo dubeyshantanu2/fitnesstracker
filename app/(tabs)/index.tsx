@@ -1,67 +1,44 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, Button, Alert } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  Button,
+  Alert,
+  ScrollView,
+} from "react-native";
 import * as Location from "expo-location";
 import { Accelerometer } from "expo-sensors";
-import * as TaskManager from "expo-task-manager";
-import * as BackgroundFetch from "expo-background-fetch";
+import { LineChart } from "react-native-chart-kit";
+import { Dimensions } from "react-native";
 
-const BACKGROUND_STEP_TASK = "BACKGROUND_STEP_TASK";
+// Type for location coordinates
+import type { LocationObjectCoords } from "expo-location";
 
-TaskManager.defineTask(BACKGROUND_STEP_TASK, async () => {
-  try {
-    const stepCountData = await new Promise((resolve) => {
-      let stepCount = 0;
-
-      const subscription = Accelerometer.addListener(({ x, y, z }) => {
-        const magnitude = Math.sqrt(x * x + y * y + z * z);
-        const threshold = 1.2; // Adjust sensitivity
-        if (magnitude > threshold) {
-          stepCount++;
-        }
-      });
-
-      setTimeout(() => {
-        subscription.remove();
-        resolve(stepCount);
-      }, 10000); // Simulate 10 seconds of data collection
-    });
-
-    console.log(`Step count during background task: ${stepCountData}`);
-    return BackgroundFetch.Result.NewData;
-  } catch (error) {
-    console.error(error);
-    return BackgroundFetch.Result.Failed;
-  }
-});
-
-// Register background task
-BackgroundFetch.registerTaskAsync(BACKGROUND_STEP_TASK, {
-  minimumInterval: 15, // Fetch interval in minutes
-  stopOnTerminate: false,
-  startOnBoot: true,
-});
+const screenWidth = Dimensions.get("window").width;
 
 export default function App() {
   const [tracking, setTracking] = useState(false);
   const [startLocation, setStartLocation] =
-    useState<Location.LocationObjectCoords | null>(null);
-  const [endLocation, setEndLocation] =
-    useState<Location.LocationObjectCoords | null>(null);
+    useState<LocationObjectCoords | null>(null);
+  const [endLocation, setEndLocation] = useState<LocationObjectCoords | null>(
+    null
+  );
   const [distance, setDistance] = useState(0);
   const [stepCount, setStepCount] = useState(0);
+  const [hourlyStepData, setHourlyStepData] = useState(Array(24).fill(0));
   const lastStepTime = useRef(Date.now());
   const prevMagnitude = useRef(0);
 
-  const getCurrentLocation =
-    async (): Promise<Location.LocationObjectCoords | null> => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission to access location was denied");
-        return null;
-      }
-      const location = await Location.getCurrentPositionAsync({});
-      return location.coords;
-    };
+  const getCurrentLocation = async (): Promise<LocationObjectCoords | null> => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission to access location was denied");
+      return null;
+    }
+    const location = await Location.getCurrentPositionAsync({});
+    return location.coords;
+  };
 
   const startTracking = async () => {
     const location = await getCurrentLocation();
@@ -93,8 +70,8 @@ export default function App() {
   };
 
   const calculateDistance = (
-    start: Location.LocationObjectCoords,
-    end: Location.LocationObjectCoords
+    start: LocationObjectCoords,
+    end: LocationObjectCoords
   ): number => {
     const toRad = (value: number) => (value * Math.PI) / 180;
     const lat1 = toRad(start.latitude);
@@ -133,6 +110,7 @@ export default function App() {
     if (magnitude > threshold && prevMagnitude.current <= threshold) {
       if (timeNow - lastStepTime.current > stepInterval) {
         setStepCount((prevStepCount) => prevStepCount + 1);
+        updateHourlyStepData();
         lastStepTime.current = timeNow;
       }
     }
@@ -140,8 +118,17 @@ export default function App() {
     prevMagnitude.current = magnitude;
   };
 
+  const updateHourlyStepData = () => {
+    const currentHour = new Date().getHours();
+    setHourlyStepData((prevData) => {
+      const updatedData = [...prevData];
+      updatedData[currentHour] += 1;
+      return updatedData;
+    });
+  };
+
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Distance Tracker</Text>
       <Text>Total Distance: {distance.toFixed(2)} km</Text>
       <Text>Total Steps: {stepCount}</Text>
@@ -150,7 +137,32 @@ export default function App() {
       ) : (
         <Button title="Start" onPress={startTracking} />
       )}
-    </View>
+      <Text style={styles.chartHeader}>Hourly Step Count</Text>
+      <LineChart
+        data={{
+          labels: Array.from({ length: 24 }, (_, i) => i.toString()),
+          datasets: [
+            {
+              data: hourlyStepData,
+              color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
+              strokeWidth: 2,
+            },
+          ],
+        }}
+        width={screenWidth - 16}
+        height={250}
+        chartConfig={{
+          backgroundGradientFrom: "#fff",
+          backgroundGradientTo: "#fff",
+          color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+          labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+          strokeWidth: 2,
+          decimalPlaces: 0,
+        }}
+        bezier
+        style={styles.chart}
+      />
+    </ScrollView>
   );
 }
 
@@ -160,10 +172,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fff",
+    paddingTop: 50,
   },
   header: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
+  },
+  chartHeader: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 20,
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 16,
   },
 });
