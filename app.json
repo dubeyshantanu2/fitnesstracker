@@ -9,13 +9,23 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow Fitness Tracker to use your location while using the app.",
+        "NSLocationAlwaysUsageDescription": "Allow Fitness Tracker to always use your location."
+      },
+      "bundleIdentifier": "com.anonymous.fitnesstracker"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.anonymous.fitnesstracker"
     },
     "web": {
       "bundler": "metro",
@@ -36,14 +46,16 @@
       [
         "expo-sensors",
         {
-          "permissions": ["accelerometer"],
+          "permissions": [
+            "accelerometer"
+          ],
           "motionPermission": "Allow Fitness Tracker to access your device motion"
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Fitness Tracker to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Fitness Tracker to use your location?"
         }
       ]
     ],
