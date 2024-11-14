@@ -1,62 +1,62 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  Button,
-  Alert,
-  ScrollView,
-} from "react-native";
-import * as Location from "expo-location";
-import { Accelerometer } from "expo-sensors";
-import { LineChart } from "react-native-chart-kit";
-import { Dimensions } from "react-native";
+import { StyleSheet, Text, Button, Alert, ScrollView } from "react-native";
+import { ThemedText } from "@/components/ThemedText"; // Custom themed text component
+import * as Location from "expo-location"; // Module for location services
+import { Accelerometer } from "expo-sensors"; // Module for accelerometer data
+import { LineChart } from "react-native-chart-kit"; // Chart library for data visualization
+import { Dimensions } from "react-native"; // Used for getting device screen dimensions
 
 // Type for location coordinates
 import type { LocationObjectCoords } from "expo-location";
 
+// Get the screen width for the chart's width
 const screenWidth = Dimensions.get("window").width;
 
 export default function App() {
-  const [tracking, setTracking] = useState(false);
+  // State variables
+  const [tracking, setTracking] = useState(false); // Whether tracking is active
   const [startLocation, setStartLocation] =
-    useState<LocationObjectCoords | null>(null);
-  const [endLocation, setEndLocation] = useState<LocationObjectCoords | null>(
-    null
-  );
-  const [distance, setDistance] = useState(0);
-  const [stepCount, setStepCount] = useState(0);
-  const [hourlyStepData, setHourlyStepData] = useState(Array(24).fill(0));
-  const lastStepTime = useRef(Date.now());
-  const prevMagnitude = useRef(0);
+    useState<LocationObjectCoords | null>(null); // Starting location
+  const [_, setEndLocation] = useState<LocationObjectCoords | null>(null); // Ending location
+  const [distance, setDistance] = useState(0); // Total distance traveled
+  const [stepCount, setStepCount] = useState(0); // Total step count
+  const [hourlyStepData, setHourlyStepData] = useState(Array(24).fill(0)); // Step count for each hour
+  const lastStepTime = useRef(Date.now()); // Time of the last detected step
+  const prevMagnitude = useRef(0); // Previous magnitude of accelerometer data
 
+  // Function to get the current location
   const getCurrentLocation = async (): Promise<LocationObjectCoords | null> => {
+    // Request permission for location services
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission to access location was denied");
       return null;
     }
+    // Get the current location
     const location = await Location.getCurrentPositionAsync({});
     return location.coords;
   };
 
+  // Function to start tracking
   const startTracking = async () => {
     const location = await getCurrentLocation();
     if (location) {
-      setStartLocation(location);
-      setTracking(true);
+      setStartLocation(location); // Set the start location
+      setTracking(true); // Enable tracking
       Alert.alert("Tracking started");
     }
   };
 
+  // Function to stop tracking
   const stopTracking = async () => {
     const location = await getCurrentLocation();
     if (location) {
-      setEndLocation(location);
+      setEndLocation(location); // Set the end location
       if (startLocation) {
+        // Calculate the distance traveled
         const calculatedDistance = calculateDistance(startLocation, location);
-        setTracking(false);
-        setDistance(calculatedDistance);
+        setTracking(false); // Disable tracking
+        setDistance(calculatedDistance); // Update distance state
         Alert.alert(
           "Tracking stopped",
           `Distance traveled: ${calculatedDistance.toFixed(
@@ -69,11 +69,12 @@ export default function App() {
     }
   };
 
+  // Function to calculate distance between two coordinates using the Haversine formula
   const calculateDistance = (
     start: LocationObjectCoords,
     end: LocationObjectCoords
   ): number => {
-    const toRad = (value: number) => (value * Math.PI) / 180;
+    const toRad = (value: number) => (value * Math.PI) / 180; // Convert degrees to radians
     const lat1 = toRad(start.latitude);
     const lon1 = toRad(start.longitude);
     const lat2 = toRad(end.latitude);
@@ -85,87 +86,92 @@ export default function App() {
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const earthRadius = 6371;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); // Angular distance in radians
+    const earthRadius = 6371; // Radius of the Earth in kilometers
 
-    return earthRadius * c;
+    return earthRadius * c; // Return the distance in kilometers
   };
 
+  // useEffect hook to set up accelerometer listener
   useEffect(() => {
     const subscription = Accelerometer.addListener(({ x, y, z }) => {
       if (tracking) {
-        detectStep({ x, y, z });
+        detectStep({ x, y, z }); // Call step detection function when tracking is enabled
       }
     });
 
-    return () => subscription.remove();
+    return () => subscription.remove(); // Clean up listener on component unmount
   }, [tracking]);
 
+  // Function to detect a step based on accelerometer data
   const detectStep = ({ x, y, z }: { x: number; y: number; z: number }) => {
-    const magnitude = Math.sqrt(x * x + y * y + z * z);
-    const timeNow = Date.now();
-    const threshold = 1.2; // Adjust for step sensitivity
-    const stepInterval = 300; // Minimum interval between steps in milliseconds
+    const magnitude = Math.sqrt(x * x + y * y + z * z); // Calculate vector magnitude
+    const timeNow = Date.now(); // Current timestamp
+    const threshold = 1.2; // Magnitude threshold for step detection
+    const stepInterval = 500; // Minimum interval between steps in milliseconds
 
+    // Check if magnitude crosses the threshold and if enough time has passed since the last step
     if (magnitude > threshold && prevMagnitude.current <= threshold) {
       if (timeNow - lastStepTime.current > stepInterval) {
-        setStepCount((prevStepCount) => prevStepCount + 1);
-        updateHourlyStepData();
-        lastStepTime.current = timeNow;
+        setStepCount((prevStepCount) => prevStepCount + 1); // Increment step count
+        updateHourlyStepData(); // Update hourly step data
+        lastStepTime.current = timeNow; // Update the last step time
       }
     }
 
-    prevMagnitude.current = magnitude;
+    prevMagnitude.current = magnitude; // Update previous magnitude
   };
 
+  // Function to update hourly step data
   const updateHourlyStepData = () => {
-    const currentHour = new Date().getHours();
+    const currentHour = new Date().getHours(); // Get the current hour
     setHourlyStepData((prevData) => {
-      const updatedData = [...prevData];
-      updatedData[currentHour] += 1;
-      return updatedData;
+      const updatedData = [...prevData]; // Copy the previous data
+      updatedData[currentHour] += 1; // Increment the step count for the current hour
+      return updatedData; // Return updated data
     });
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Distance Tracker</Text>
-      <Text>Total Distance: {distance.toFixed(2)} km</Text>
-      <Text>Total Steps: {stepCount}</Text>
+      <ThemedText style={styles.header}>Distance Tracker</ThemedText>
+      <ThemedText>Total Distance: {distance.toFixed(2)} km</ThemedText>
+      <ThemedText>Total Steps: {stepCount}</ThemedText>
       {tracking ? (
         <Button title="Stop" onPress={stopTracking} />
       ) : (
         <Button title="Start" onPress={startTracking} />
       )}
-      <Text style={styles.chartHeader}>Hourly Step Count</Text>
+      <ThemedText style={styles.chartHeader}>Hourly Step Count</ThemedText>
       <LineChart
         data={{
-          labels: Array.from({ length: 24 }, (_, i) => i.toString()),
+          labels: Array.from({ length: 24 }, (_, i) => i.toString()), // Hour labels (0 to 23)
           datasets: [
             {
-              data: hourlyStepData,
-              color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
-              strokeWidth: 2,
+              data: hourlyStepData, // Step data for each hour
+              color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`, // Line color
+              strokeWidth: 2, // Line thickness
             },
           ],
         }}
-        width={screenWidth - 16}
-        height={250}
+        width={screenWidth} // Chart width
+        height={250} // Chart height
         chartConfig={{
-          backgroundGradientFrom: "#fff",
-          backgroundGradientTo: "#fff",
-          color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-          labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-          strokeWidth: 2,
-          decimalPlaces: 0,
+          backgroundGradientFrom: "#fff", // Background color
+          backgroundGradientTo: "#fff", // Background color
+          color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Text color
+          labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Label color
+          strokeWidth: 2, // Line thickness
+          decimalPlaces: 0, // No decimal places
         }}
-        bezier
-        style={styles.chart}
+        bezier // Smooth line chart
+        style={styles.chart} // Chart styling
       />
     </ScrollView>
   );
 }
 
+// Styles for the app
 const styles = StyleSheet.create({
   container: {
     flex: 1,
